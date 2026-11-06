@@ -1,0 +1,152 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Laporan Kas Bulanan</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:Arial,sans-serif;background:#f3f5f9;color:#202b40;margin:0;padding:20px}
+main{max-width:850px;margin:auto}
+h1{font-size:27px}
+.card,.panel{background:white;padding:18px;border-radius:12px;margin-bottom:16px;border:1px solid #e5e8ef}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+small{color:#687386}
+.amount{font-size:21px;font-weight:bold;margin-top:10px}
+input,select,button{padding:12px;border:1px solid #ddd;border-radius:7px;font-size:14px;width:100%}
+form{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button{background:#3157d5;color:white;border:0;font-weight:bold;cursor:pointer}
+button.delete{background:#c64b4b;padding:7px}
+table{width:100%;border-collapse:collapse;margin-top:15px}
+th,td{text-align:left;padding:10px;border-bottom:1px solid #eee;font-size:13px}
+.table{overflow-x:auto}
+.green{color:#16845b}.red{color:#c64b4b}
+.actions{display:flex;gap:10px;margin-top:15px}
+@media(max-width:550px){.cards{grid-template-columns:1fr}body{padding:12px}form{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<main>
+<h1>Laporan Kas Bulanan</h1>
+<p><small>Catatan pemasukan dan pengeluaran kas</small></p>
+
+<div class="panel">
+<label>Pilih Bulan</label>
+<input type="month" id="bulan">
+</div>
+
+<div class="cards">
+<div class="card"><small>Total Pemasukan</small><div class="amount green" id="masuk">Rp0</div></div>
+<div class="card"><small>Total Pengeluaran</small><div class="amount red" id="keluar">Rp0</div></div>
+<div class="card"><small>Saldo Kas</small><div class="amount" id="saldo">Rp0</div></div>
+</div>
+
+<div class="panel">
+<h3>Tambah Transaksi</h3>
+<form id="form">
+<input type="date" id="tanggal" required>
+<select id="jenis">
+<option value="masuk">Pemasukan</option>
+<option value="keluar">Pengeluaran</option>
+</select>
+<input type="text" id="keterangan" placeholder="Keterangan transaksi" required>
+<input type="number" id="jumlah" placeholder="Jumlah rupiah" min="1" required>
+<button type="submit" style="grid-column:1/-1">Simpan Transaksi</button>
+</form>
+</div>
+
+<div class="panel">
+<h3>Riwayat Transaksi</h3>
+<div class="table">
+<table>
+<thead><tr><th>Tanggal</th><th>Jenis</th><th>Keterangan</th><th>Jumlah</th><th>Aksi</th></tr></thead>
+<tbody id="daftar"></tbody>
+</table>
+</div>
+<div class="actions">
+<button id="csv">Unduh CSV</button>
+<button id="hapus" style="background:#c64b4b">Hapus Semua</button>
+</div>
+</div>
+<p><small>Data tersimpan di browser perangkat ini. Simpan cadangan laporan secara berkala.</small></p>
+</main>
+
+<script>
+const $=id=>document.getElementById(id);
+const key="dataKasBulanan";
+let data=JSON.parse(localStorage.getItem(key)||"[]");
+const now=new Date();
+const today=new Date(now-now.getTimezoneOffset()*60000).toISOString().slice(0,10);
+$("tanggal").value=today;
+$("bulan").value=today.slice(0,7);
+
+function uang(n){
+return new Intl.NumberFormat("id-ID",{style:"currency",currency:"IDR",maximumFractionDigits:0}).format(n);
+}
+function tampil(){
+let bulan=$("bulan").value;
+let list=data.filter(x=>x.tanggal.slice(0,7)===bulan);
+let m=list.filter(x=>x.jenis==="masuk").reduce((a,b)=>a+b.jumlah,0);
+let k=list.filter(x=>x.jenis==="keluar").reduce((a,b)=>a+b.jumlah,0);
+$("masuk").textContent=uang(m);
+$("keluar").textContent=uang(k);
+$("saldo").textContent=uang(m-k);
+$("daftar").innerHTML=list.sort((a,b)=>b.tanggal.localeCompare(a.tanggal)).map(x=>`
+<tr>
+<td>${x.tanggal}</td>
+<td>${x.jenis==="masuk"?"Masuk":"Keluar"}</td>
+<td>${aman(x.keterangan)}</td>
+<td>${uang(x.jumlah)}</td>
+<td><button class="delete" onclick="hapus(${x.id})">X</button></td>
+</tr>`).join("");
+}
+function aman(s){
+return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function simpan(){
+localStorage.setItem(key,JSON.stringify(data));
+tampil();
+}
+$("form").onsubmit=e=>{
+e.preventDefault();
+let jumlah=Number($("jumlah").value);
+if(!Number.isSafeInteger(jumlah)||jumlah<=0)return alert("Jumlah harus lebih dari nol.");
+data.push({
+id:Date.now(),
+tanggal:$("tanggal").value,
+jenis:$("jenis").value,
+keterangan:$("keterangan").value.trim(),
+jumlah
+});
+simpan();
+$("keterangan").value="";
+$("jumlah").value="";
+};
+function hapus(id){
+if(confirm("Hapus transaksi ini?")){
+data=data.filter(x=>x.id!==id);
+simpan();
+}
+}
+$("bulan").onchange=tampil;
+$("hapus").onclick=()=>{
+if(confirm("Hapus seluruh data transaksi?")){
+data=[];
+simpan();
+}
+};
+$("csv").onclick=()=>{
+let list=data.filter(x=>x.tanggal.slice(0,7)===$("bulan").value);
+let rows=[["Tanggal","Jenis","Keterangan","Jumlah"],...list.map(x=>[x.tanggal,x.jenis,x.keterangan,x.jumlah])];
+let csv="\uFEFF"+rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(",")).join("\n");
+let a=document.createElement("a");
+a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
+a.download="laporan-kas-"+$("bulan").value+".csv";
+a.click();
+URL.revokeObjectURL(a.href);
+};
+tampil();
+</script>
+</body>
+</html>
